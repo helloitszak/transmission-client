@@ -38,7 +38,63 @@
 
 (defrpc torrent-set [ids params] "torrent-set" (merge {"ids" ids} params))
 
-(defrpc torrent-get [fields] "torrent-get" {"fields" fields})
+(def ^{:private true}
+  status_map
+  {0 :stopped
+   1 :check_wait
+   2 :check
+   3 :download_wait
+   4 :download
+   5 :seed_wait
+   6 :seed})
+
+(def ^{:private true}
+  tracker_state
+  {0 :inactive
+   1 :waiting
+   2 :queued
+   3 :active})
+
+(def ^{:private true}
+  error_type
+  {0 :ok
+   1 :tracker_warning
+   2 :tracker_error
+   3 :local_error})
+
+(def ^{:private true}
+  eta_map
+  {-1 :not_available
+   -2 :unknown})
+
+(def ^{:private true}
+  ratio_map
+  {-1 :not_applicable
+   -2 :infinite})
+
+(def mappers ^{:private true}
+  {:status status_map
+   :error error_type
+   :eta eta_map
+   :uploadRatio ratio_map
+   :etaIdle eta_map})
+
+(defn- parse-torrent-get [result]
+  (assoc-in result [:arguments :torrents]
+            (->> (get-in result [:arguments :torrents])
+                 (map parse-torrent-get-item)
+                 (into []))))
+
+(defn- parse-torrent-get-item [item]
+  (->>
+   item
+   (map (fn [pair]
+          (let [[key val] pair
+                replacement (or (get (get mappers key nil) val) val)]
+            (assoc pair 1 replacement))))
+   (into {})))
+
+(defrpc torrent-get [fields] "torrent-get" {"fields" fields} (parse-torrent-get result))
 
 (defrpc torrent-get-ids [ids fields] "torrent-get" {"ids" ids "fields" fields})
 

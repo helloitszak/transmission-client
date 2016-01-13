@@ -16,15 +16,16 @@
     (catch [:status 409] {:keys [headers]}
       (rpc server method args auth (get headers "X-Transmission-Session-Id"))))))
 
-(defmacro ^{:private true} defrpc [name params rpc-name rpc-in & body]
-  `(defn ~name
-     ([~'server ~@params] (~name ~'server ~@params nil ""))
-     ([~'server ~@params ~'auth] (~name ~'server ~@params ~'auth ""))
-     ([~'server ~@params ~'auth ~'sessionid]
-      (let [~'result (->
-                    (rpc ~'server ~rpc-name ~rpc-in ~'auth ~'sessionid)
-                    :body)]
-        ~(if body `(do ~@body) `~'result)))))
+(defmacro ^{:private true} defrpc
+  ([name params rpc-name rpc-in] `(defrpc ~name ~params ~rpc-name ~rpc-in nil))
+  ([name params rpc-name rpc-in rpc-out]
+   `(defn ~name
+      ([~'server ~@params] (~name ~'server ~@params nil ""))
+      ([~'server ~@params ~'auth] (~name ~'server ~@params ~'auth ""))
+      ([~'server ~@params ~'auth ~'sessionid]
+       (let [~'result (:body (rpc ~'server ~rpc-name ~rpc-in ~'auth ~'sessionid))]
+         ~(if rpc-out `(~rpc-out ~'result) `~'result))))))
+
 
 (defrpc torrent-start [ids] "torrent-start" {"ids" ids})
 
@@ -94,9 +95,9 @@
             (assoc pair 1 replacement))))
    (into {})))
 
-(defrpc torrent-get [fields] "torrent-get" {"fields" fields} (parse-torrent-get result))
+(defrpc torrent-get [fields] "torrent-get" {"fields" fields} parse-torrent-get)
 
-(defrpc torrent-get-ids [ids fields] "torrent-get" {"ids" ids "fields" fields})
+(defrpc torrent-get-ids [ids fields] "torrent-get" {"ids" ids "fields" fields} parse-torrent-get)
 
 (defrpc torrent-add-file [path params] "torrent-add" (merge {"filename" path} params))
 
@@ -127,6 +128,6 @@
 (defrpc queue-move-top [ids] "queue-move-top" {"ids" ids})
 (defrpc queue-move-up [ids] "queue-move-up" {"ids" ids})
 (defrpc queue-move-down [ids] "queue-move-down" {"ids" ids})
-(defrpc queue-move-bottom [ids] "queue-move-botom" {"ids" ids})
+(defrpc queue-move-bottom [ids] "queue-move-bottom" {"ids" ids})
 
 (defrpc free-space [path] "free-space" {"path" path})

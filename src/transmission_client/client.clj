@@ -1,6 +1,8 @@
 (ns transmission-client.client
   (:require [clj-http.client :as client]
-            [slingshot.slingshot :refer [try+]]))
+            [slingshot.slingshot :refer [try+]]
+            [clojure.data.codec.base64 :as b64]
+            [clojure.java.io :as io]))
 
 (defn rpc
   ([server method args] (rpc server method args nil ""))
@@ -15,6 +17,10 @@
       (client/post server req))
     (catch [:status 409] {:keys [headers]}
       (rpc server method args auth (get headers "X-Transmission-Session-Id"))))))
+
+
+(defn- byte->bits [byte]
+  (map #(bit-test byte %) (reverse (range 8))))
 
 (defmacro ^{:private true} defrpc
   ([name params rpc-name rpc-in] `(defrpc ~name ~params ~rpc-name ~rpc-in nil))
@@ -35,12 +41,12 @@
 
 (defrpc torrent-verify [ids] "torrent-verify" {"ids" ids})
 
-(defrpc torrent-reannounce [ids] "torrent-reannounce" {"ids" ids}) 
+(defrpc torrent-reannounce [ids] "torrent-reannounce" {"ids" ids})
 
 (defrpc torrent-set [ids params] "torrent-set" (merge {"ids" ids} params))
 
 (def ^{:private true}
-  status_map
+  status-map
   {0 :stopped
    1 :check_wait
    2 :check
@@ -50,50 +56,56 @@
    6 :seed})
 
 (def ^{:private true}
-  tracker_state
+  tracker-state
   {0 :inactive
    1 :waiting
    2 :queued
    3 :active})
 
 (def ^{:private true}
-  error_type
+  error-type
   {0 :ok
    1 :tracker_warning
    2 :tracker_error
    3 :local_error})
 
 (def ^{:private true}
-  eta_map
+  eta-map
   {-1 :not_available
    -2 :unknown})
 
 (def ^{:private true}
-  ratio_map
+  ratio-map
   {-1 :not_applicable
    -2 :infinite})
 
-(def mappers ^{:private true}
-  {:status status_map
-   :error error_type
-   :eta eta_map
-   :uploadRatio ratio_map
-   :etaIdle eta_map})
+(defn- pieces-decoder [parts]
+  (->> (b64/decode (.getBytes parts))
+       (mapcat #(byte->bits (bit-and % 0xff)))
+       (into [])))
 
-(defn- parse-torrent-get [result]
-  (assoc-in result [:arguments :torrents]
-            (->> (get-in result [:arguments :torrents])
-                 (map parse-torrent-get-item)
-                 (into []))))
+(def mappers ^{:private true}
+  {:status #(get status_map %)
+   :error #(get error_type %)
+   :eta #(get eta_map %)
+   :uploadRatio #(get ratio_map %)
+   :etaIdle #(get eta_map %)
+   :pieces pieces-decoder})
 
 (defn- parse-torrent-get-item [item]
   (->>
    item
    (map (fn [pair]
           (let [[key val] pair
-                replacement (or (get (get mappers key nil) val) val)]
+                replacement ((get mappers key identity) val)]
             (assoc pair 1 replacement))))
    (into {})))
+
+(defn- parse-torrent-get [result]
+  (assoc-in result [:arguments :torrents]
+            (->> (get-in result [:arguments :torrents])
+                 (map parse-torrent-get-item)
+                 (into []))))
 
 (defrpc torrent-get [fields] "torrent-get" {"fields" fields} parse-torrent-get)
 
@@ -131,3 +143,72 @@
 (defrpc queue-move-bottom [ids] "queue-move-bottom" {"ids" ids})
 
 (defrpc free-space [path] "free-space" {"path" path})
+
+(def all-fields ["activityDate"
+                 "addedDate"
+                 "bandwidthPriority"
+                 "comment"
+                 "corruptEver"
+                 "creator"
+                 "dateCreated"
+                 "desiredAvailable"
+                 "doneDate"
+                 "downloadDir"
+                 "downloadedEver"
+                 "downloadLimit"
+                 "downloadLimited"
+                 "error"
+                 "errorString"
+                 "eta"
+                 "etaIdle"
+                 "files"
+                 "fileStats"
+                 "hashString"
+                 "haveUnchecked"
+                 "haveValid"
+                 "honorsSessionLimits"
+                 "id"
+                 "isFinished"
+                 "isPrivate"
+                 "isStalled"
+                 "leftUntilDone"
+                 "magnetLink"
+                 "manualAnnounceTime"
+                 "maxConnectedPeers"
+                 "metadataPercentComplete"
+                 "name"
+                 "peer"
+                 "peers"
+                 "peersConnected"
+                 "peersFrom"
+                 "peersGettingFromUs"
+                 "peersSendingToUs"
+                 "percentDone"
+                 "pieces"
+                 "pieceCount"
+                 "pieceSize"
+                 "priorities"
+                 "queuePosition"
+                 "rateDownload"
+                 "rateUpload"
+                 "recheckProgress"
+                 "secondsDownloading"
+                 "secondsSeeding"
+                 "seedIdleLimit"
+                 "seedIdleMode"
+                 "seedRatioLimit"
+                 "seedRatioMode"
+                 "sizeWhenDone"
+                 "startDate"
+                 "status"
+                 "trackers"
+                 "trackerStats"
+                 "totalSize"
+                 "torrentFile"
+                 "uploadedEver"
+                 "uploadLimit"
+                 "uploadLimited"
+                 "uploadRatio"
+                 "wanted"
+                 "webseeds"
+                 "webseedsSendingToUs"])

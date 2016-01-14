@@ -1,11 +1,16 @@
 # transmission-client
 
+[![Clojars Project](https://img.shields.io/clojars/v/transmission-client.svg)](https://clojars.org/transmission-client)
+
 A Clojure client for the Transmission Torrent Client
 
 ## Usage
 
-Don't use this yet, I'm still fleshing out the public api.
-It will be published on Clojars once the public API is stable
+Simply include `[transmission-client "0.1.0"]` in your project.
+
+See the `doc` folder for details on how to use.
+
+This project follows [semver](http://semver.org/).
 
 ## License
 

@@ -1,4 +1,4 @@
-(defproject transmission-client "0.1.0-SNAPSHOT"
+(defproject transmission-client "0.1.0"
   :description "Client for the transmission torrent API"
   :license {:name "MIT"
             :url "https://opensource.org/licenses/MIT"}

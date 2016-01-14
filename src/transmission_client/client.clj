@@ -1,10 +1,17 @@
 (ns transmission-client.client
+  "Provides a client to transmission. Methods are named the same as in the
+  official transmission documentation.
+
+  Found here: https://trac.transmissionbt.com/browser/trunk/extras/rpc-spec.txt"
   (:require [clj-http.client :as client]
             [slingshot.slingshot :refer [try+]]
             [clojure.data.codec.base64 :as b64]
             [clojure.java.io :as io]))
 
 (defn rpc
+  "Provides low-level api access to Transmission. Provides serialization in and
+  out as JSON, automatically injecting X-Transmission-Session-Id if no or an out
+  of date session id is specified"
   ([server method args] (rpc server method args nil ""))
   ([server method args auth] (rpc server method args auth ""))
   ([server method args auth sessionid]
